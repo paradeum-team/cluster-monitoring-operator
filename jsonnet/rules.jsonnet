@@ -68,11 +68,19 @@
             record: 'cluster:memory_usage_bytes:sum',
           },
           {
-            expr: 'sum(rate(container_cpu_usage_seconds_total{namespace=~"openshift-.+"}[1m]))',
+            expr: 'sum(rate(container_cpu_usage_seconds_total{namespace!~"openshift-.+",pod_name!="",container_name=""}[1m]))',
+            record: 'workload:cpu_usage_cores:sum',
+          },
+          {
+            expr: 'cluster:cpu_usage_cores:sum - workload:cpu_usage_cores:sum',
             record: 'openshift:cpu_usage_cores:sum',
           },
           {
-            expr: 'sum(container_memory_working_set_bytes{namespace=~"openshift-.+"})',
+            expr: 'sum(container_memory_working_set_bytes{namespace!~"openshift-.+",pod_name!="",container_name=""})',
+            record: 'workload:memory_usage_bytes:sum',
+          },
+          {
+            expr: 'cluster:memory_usage_bytes:sum - workload:memory_usage_bytes:sum',
             record: 'openshift:memory_usage_bytes:sum',
           },
           {
@@ -97,6 +105,27 @@
         ],
       },
       {
+        name: 'openshift-ingress.rules',
+        rules: [
+          {
+            expr: 'sum by (code) (rate(haproxy_server_http_responses_total[5m]) > 0)',
+            record: 'code:cluster:ingress_http_request_count:rate5m:sum',
+          },
+          {
+            expr: 'sum by (frontend) (rate(haproxy_frontend_bytes_in_total[5m]))',
+            record: 'frontend:cluster:ingress_frontend_bytes_in:rate5m:sum',
+          },
+          {
+            expr: 'sum by (frontend) (rate(haproxy_frontend_bytes_out_total[5m]))',
+            record: 'frontend:cluster:ingress_frontend_bytes_out:rate5m:sum',
+          },
+          {
+            expr: 'sum by (frontend) (haproxy_frontend_current_sessions)',
+            record: 'frontend:cluster:ingress_frontend_connections:sum',
+          }
+        ],
+      },
+      {
         name: 'openshift-build.rules',
         rules: [
           {
@@ -111,6 +140,10 @@
           {
             expr: 'sum(rate(apiserver_request_count{job="apiserver"}[10m])) BY (code)',
             record: 'code:apiserver_request_count:rate:sum',
+          },
+          {
+            expr: 'sum(rate(apiserver_request_count{job="apiserver",resource=~"image.*",verb!="WATCH"}[10m])) BY (code)',
+            record: 'code:registry_api_request_count:rate:sum',
           },
           {
             expr: 'sum(kube_pod_status_ready{condition="true",namespace="openshift-etcd",pod=~"etcd.*"}) by(condition)',

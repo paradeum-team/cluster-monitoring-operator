@@ -1,9 +1,11 @@
-SHELL=/bin/bash -o pipefail
+SHELL=/usr/bin/env bash -o pipefail
 
 GO_PKG=github.com/openshift/cluster-monitoring-operator
 REPO?=quay.io/openshift/cluster-monitoring-operator
 TAG?=$(shell git rev-parse --short HEAD)
 VERSION=$(shell cat VERSION | tr -d " \t\n\r")
+GO111MODULE?=on
+export GO111MODULE
 
 PKGS=$(shell go list ./... | grep -v -E '/vendor/|/test|/examples')
 GOLANG_FILES:=$(shell find . -name \*.go -print) pkg/manifests/bindata.go
@@ -22,7 +24,7 @@ CONTAINER_CMD:=docker run --rm \
 		-v "$(shell go env GOCACHE):/.cache/go-build" \
 		-v "$(PWD):/go/src/$(GO_PKG):Z" \
 		-w "/go/src/$(GO_PKG)" \
-		-e GO111MODULE=on \
+		-e GO111MODULE=$(GO111MODULE) \
 		quay.io/coreos/jsonnet-ci
 
 .PHONY: all
@@ -68,6 +70,7 @@ image: .hack-operator-image
 # Generating #
 ##############
 
+.PHONY: vendor
 vendor:
 	go mod tidy
 	go mod vendor
@@ -80,19 +83,19 @@ generate: $(EMBEDMD_BIN) merge-cluster-roles pkg/manifests/bindata.go docs
 generate-in-docker:
 	$(CONTAINER_CMD) $(MAKE) $(MFLAGS) generate
 
-jsonnet/vendor: jsonnet/jsonnetfile.json
+jsonnet/vendor: $(JB_BINARY) jsonnet/jsonnetfile.json
 	cd jsonnet && jb install
 
-$(ASSETS): $(JSONNET_SRC) $(JSONNET_VENDOR) hack/build-jsonnet.sh
+$(ASSETS): $(JSONNET_SRC) $(JSONNET_VENDOR) $(GOJSONTOYAML_BINARY) hack/build-jsonnet.sh
 	./hack/build-jsonnet.sh
 
 pkg/manifests/bindata.go: $(GOBINDATA_BIN) $(ASSETS)
 	# Using "-modtime 1" to make generate target deterministic. It sets all file time stamps to unix timestamp 1
 	go-bindata -mode 420 -modtime 1 -pkg manifests -o $@ assets/...
 
-merge-cluster-roles: manifests/02-role.yaml
-manifests/02-role.yaml: $(ASSETS) hack/merge_cluster_roles.py hack/cluster-monitoring-operator-role.yaml.in
-	python2 hack/merge_cluster_roles.py hack/cluster-monitoring-operator-role.yaml.in `find assets | grep role | grep -v "role-binding" | sort` > manifests/02-role.yaml
+merge-cluster-roles: manifests/0000_50_cluster_monitoring_operator_02-role.yaml
+manifests/0000_50_cluster_monitoring_operator_02-role.yaml: $(ASSETS) hack/merge_cluster_roles.py hack/cluster-monitoring-operator-role.yaml.in
+	python2 hack/merge_cluster_roles.py hack/cluster-monitoring-operator-role.yaml.in `find assets | grep role | grep -v "role-binding" | sort` > $@
 
 .PHONY: docs
 docs:
@@ -111,7 +114,7 @@ go-fmt:
 
 .PHONY: shellcheck
 shellcheck:
-	docker run -v "${PWD}:/mnt" koalaman/shellcheck:stable $(shell find . -type f -name "*.sh" -not -path "*vendor*")
+	hack/shellcheck.sh
 
 ###########
 # Testing #
@@ -128,6 +131,11 @@ test-unit:
 test-e2e: KUBECONFIG?=$(HOME)/.kube/config
 test-e2e:
 	go test -v -timeout=20m ./test/e2e/ --kubeconfig $(KUBECONFIG)
+
+.PHONY: test-sec
+test-sec:
+	@which gosec 2> /dev/null >&1 || { echo "gosec must be installed to lint code";  exit 1; }
+	gosec -severity medium --confidence medium -quiet ./...
 
 ############
 # Binaries #

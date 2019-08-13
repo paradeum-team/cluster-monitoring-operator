@@ -222,50 +222,7 @@ local namespacesRole =
         },
       },
 
-    serviceMonitorOpenShiftApiserver:
-      {
-        apiVersion: 'monitoring.coreos.com/v1',
-        kind: 'ServiceMonitor',
-        metadata: {
-          name: 'openshift-apiserver',
-        },
-        spec: {
-          endpoints: [
-            {
-              bearerTokenFile: '/var/run/secrets/kubernetes.io/serviceaccount/token',
-              interval: '30s',
-              port: 'https',
-              scheme: 'https',
-              tlsConfig: {
-                caFile: '/etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt',
-                serverName: 'api.openshift-apiserver.svc',
-              },
-              metricRelabelings: [
-                {
-                  sourceLabels: ['__name__'],
-                  regex: 'etcd_(debugging|disk|request|server).*',
-                  action: 'drop',
-                },
-                {
-                  sourceLabels: ['__name__'],
-                  regex: 'apiserver_admission_controller_admission_latencies_seconds_.*',
-                  action: 'drop',
-                },
-                {
-                  sourceLabels: ['__name__'],
-                  regex: 'apiserver_admission_step_admission_latencies_seconds_.*',
-                  action: 'drop',
-                },
-              ],
-            },
-          ],
-          namespaceSelector: {
-            matchNames: ['openshift-apiserver'],
-          },
-          selector: {
-          },
-        },
-      },
+    serviceMonitorApiserver:: {},
 
     serviceMonitorEtcd+:
       {
@@ -300,78 +257,9 @@ local namespacesRole =
         },
       },
 
-    // In OpenShift the kube-scheduler runs in its own namespace, and has a TLS
-    // cert from the serving certs controller.
+    serviceMonitorKubeScheduler:: {},
 
-    serviceMonitorKubeScheduler+:
-      {
-        spec+: {
-          jobLabel: null,
-          namespaceSelector: {
-            matchNames: [
-              'openshift-kube-scheduler',
-            ],
-          },
-          selector: {},
-          endpoints:
-            std.map(
-              function(a) a {
-                bearerTokenFile: '/var/run/secrets/kubernetes.io/serviceaccount/token',
-                interval: '30s',
-                port: 'https',
-                scheme: 'https',
-                tlsConfig: {
-                  // TODO: currently, kube scheduler operator doesn't enroll target certificates correctly.
-                  // Once this is resolved, reenable TLS verification.
-                  insecureSkipVerify: true,
-                  // caFile: '/etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt',
-                  // serverName: 'scheduler.openshift-kube-scheduler.svc',
-                },
-              },
-              super.endpoints,
-            ),
-        },
-      },
-
-    // In OpenShift the kube-controller-manager runs in its own namespace, and
-    // has a TLS cert from the serving certs controller.
-
-    serviceMonitorKubeControllerManager+:
-      {
-        spec+: {
-          jobLabel: null,
-          namespaceSelector: {
-            matchNames: [
-              'openshift-kube-controller-manager',
-            ],
-          },
-          selector: {},
-          endpoints:
-            std.map(
-              function(a) a {
-                bearerTokenFile: '/var/run/secrets/kubernetes.io/serviceaccount/token',
-                interval: '30s',
-                port: 'https',
-                scheme: 'https',
-                tlsConfig: {
-                  // TODO: currently, kube controller manager operator doesn't enroll target certificates correctly.
-                  // Once this is resolved, reenable TLS verification.
-                  insecureSkipVerify: true,
-                  // caFile: '/etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt',
-                  // serverName: 'controller-manager.openshift-kube-controller-manager.svc',
-                },
-                metricRelabelings+: [{
-                  action: 'drop',
-                  regex: 'rest_client_request_latency_seconds_(bucket|count|sum)',
-                  sourceLabels: [
-                    '__name__',
-                  ],
-                }],
-              },
-              super.endpoints,
-            ),
-        },
-      },
+    serviceMonitorKubeControllerManager:: {},
 
     // These patches inject the oauth proxy as a sidecar and configures it with
     // TLS. Additionally as the Alertmanager is protected with TLS, authN and

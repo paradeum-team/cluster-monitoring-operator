@@ -2,18 +2,18 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: kube-state-metrics
-  name: kube-state-metrics
+    k8s-app: openshift-state-metrics
+  name: openshift-state-metrics
   namespace: openshift-monitoring
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: kube-state-metrics
+      k8s-app: openshift-state-metrics
   template:
     metadata:
       labels:
-        app: kube-state-metrics
+        k8s-app: openshift-state-metrics
     spec:
       containers:
       - args:
@@ -31,10 +31,10 @@ spec:
         resources:
           requests:
             cpu: 10m
-            memory: 40Mi
+            memory: 20Mi
         volumeMounts:
         - mountPath: /etc/tls/private
-          name: kube-state-metrics-tls
+          name: openshift-state-metrics-tls
           readOnly: false
       - args:
         - --logtostderr
@@ -51,34 +51,27 @@ spec:
         resources:
           requests:
             cpu: 10m
-            memory: 40Mi
+            memory: 20Mi
         volumeMounts:
         - mountPath: /etc/tls/private
-          name: kube-state-metrics-tls
+          name: openshift-state-metrics-tls
           readOnly: false
       - args:
         - --host=127.0.0.1
         - --port=8081
         - --telemetry-host=127.0.0.1
         - --telemetry-port=8082
-        image: quay.io/coreos/kube-state-metrics:v1.7.1
-        name: kube-state-metrics
+        image: quay.io/openshift/origin-openshift-state-metrics:4.2
+        name: openshift-state-metrics
         resources:
           requests:
-            cpu: 10m
-            memory: 40Mi
-        volumeMounts:
-        - mountPath: /tmp
-          name: volume-directive-shadow
-          readOnly: false
+            cpu: 100m
+            memory: 150Mi
       nodeSelector:
-        kubernetes.io/os: linux
+        beta.kubernetes.io/os: linux
       priorityClassName: system-cluster-critical
-      securityContext: {}
-      serviceAccountName: kube-state-metrics
+      serviceAccountName: openshift-state-metrics
       volumes:
-      - emptyDir: {}
-        name: volume-directive-shadow
-      - name: kube-state-metrics-tls
+      - name: openshift-state-metrics-tls
         secret:
-          secretName: kube-state-metrics-tls
+          secretName: openshift-state-metrics-tls

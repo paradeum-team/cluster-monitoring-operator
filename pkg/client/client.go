@@ -26,7 +26,6 @@ import (
 	monitoring "github.com/coreos/prometheus-operator/pkg/client/versioned"
 	"github.com/coreos/prometheus-operator/pkg/k8sutil"
 	prometheusoperator "github.com/coreos/prometheus-operator/pkg/prometheus"
-	"github.com/golang/glog"
 	configv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	secv1 "github.com/openshift/api/security/v1"
@@ -38,7 +37,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	v1betaextensions "k8s.io/api/extensions/v1beta1"
-	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	extensionsobj "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -48,6 +47,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog"
 	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 )
@@ -351,8 +351,8 @@ func (c *Client) DeletePrometheus(p *monv1.Prometheus) error {
 			return false, errors.Wrap(err, "retrieving pods during polling failed")
 		}
 
-		glog.V(6).Infof("waiting for %d Pods to be deleted", len(pods.Items))
-		glog.V(6).Infof("done waiting? %t", len(pods.Items) == 0)
+		klog.V(6).Infof("waiting for %d Pods to be deleted", len(pods.Items))
+		klog.V(6).Infof("done waiting? %t", len(pods.Items) == 0)
 
 		lastErr = fmt.Errorf("waiting for %d Pods to be deleted", len(pods.Items))
 		return len(pods.Items) == 0, nil
@@ -397,8 +397,8 @@ func (c *Client) DeleteServiceAccount(sa *v1.ServiceAccount) error {
 	return err
 }
 
-func (c *Client) DeleteClusterRole(cr *rbacv1beta1.ClusterRole) error {
-	err := c.kclient.RbacV1beta1().ClusterRoles().Delete(cr.GetName(), &metav1.DeleteOptions{})
+func (c *Client) DeleteClusterRole(cr *rbacv1.ClusterRole) error {
+	err := c.kclient.RbacV1().ClusterRoles().Delete(cr.GetName(), &metav1.DeleteOptions{})
 	if apierrors.IsNotFound(err) {
 		return nil
 	}
@@ -406,8 +406,8 @@ func (c *Client) DeleteClusterRole(cr *rbacv1beta1.ClusterRole) error {
 	return err
 }
 
-func (c *Client) DeleteClusterRoleBinding(crb *rbacv1beta1.ClusterRoleBinding) error {
-	err := c.kclient.RbacV1beta1().ClusterRoleBindings().Delete(crb.GetName(), &metav1.DeleteOptions{})
+func (c *Client) DeleteClusterRoleBinding(crb *rbacv1.ClusterRoleBinding) error {
+	err := c.kclient.RbacV1().ClusterRoleBindings().Delete(crb.GetName(), &metav1.DeleteOptions{})
 	if apierrors.IsNotFound(err) {
 		return nil
 	}
@@ -784,8 +784,8 @@ func (c *Client) CreateOrUpdateEndpoints(endpoints *v1.Endpoints) error {
 	return errors.Wrap(err, "updating Endpoints object failed")
 }
 
-func (c *Client) CreateOrUpdateRoleBinding(rb *rbacv1beta1.RoleBinding) error {
-	rbClient := c.kclient.RbacV1beta1().RoleBindings(rb.GetNamespace())
+func (c *Client) CreateOrUpdateRoleBinding(rb *rbacv1.RoleBinding) error {
+	rbClient := c.kclient.RbacV1().RoleBindings(rb.GetNamespace())
 	r, err := rbClient.Get(rb.GetName(), metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		_, err := rbClient.Create(rb)
@@ -806,8 +806,8 @@ func (c *Client) CreateOrUpdateRoleBinding(rb *rbacv1beta1.RoleBinding) error {
 	return errors.Wrap(err, "updating RoleBinding object failed")
 }
 
-func (c *Client) CreateOrUpdateRole(r *rbacv1beta1.Role) error {
-	rClient := c.kclient.RbacV1beta1().Roles(r.GetNamespace())
+func (c *Client) CreateOrUpdateRole(r *rbacv1.Role) error {
+	rClient := c.kclient.RbacV1().Roles(r.GetNamespace())
 	_, err := rClient.Get(r.GetName(), metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		_, err := rClient.Create(r)
@@ -821,8 +821,8 @@ func (c *Client) CreateOrUpdateRole(r *rbacv1beta1.Role) error {
 	return errors.Wrap(err, "updating Role object failed")
 }
 
-func (c *Client) CreateOrUpdateClusterRole(cr *rbacv1beta1.ClusterRole) error {
-	crClient := c.kclient.RbacV1beta1().ClusterRoles()
+func (c *Client) CreateOrUpdateClusterRole(cr *rbacv1.ClusterRole) error {
+	crClient := c.kclient.RbacV1().ClusterRoles()
 	_, err := crClient.Get(cr.GetName(), metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		_, err := crClient.Create(cr)
@@ -836,8 +836,8 @@ func (c *Client) CreateOrUpdateClusterRole(cr *rbacv1beta1.ClusterRole) error {
 	return errors.Wrap(err, "updating ClusterRole object failed")
 }
 
-func (c *Client) CreateOrUpdateClusterRoleBinding(crb *rbacv1beta1.ClusterRoleBinding) error {
-	crbClient := c.kclient.RbacV1beta1().ClusterRoleBindings()
+func (c *Client) CreateOrUpdateClusterRoleBinding(crb *rbacv1.ClusterRoleBinding) error {
+	crbClient := c.kclient.RbacV1().ClusterRoleBindings()
 	_, err := crbClient.Get(crb.GetName(), metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		_, err := crbClient.Create(crb)

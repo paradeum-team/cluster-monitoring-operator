@@ -9,6 +9,7 @@
 # 	assets/kube-state-metrics/cluster-role.yaml
 # 	assets/kube-state-metrics/role.yaml
 # 	assets/node-exporter/cluster-role.yaml
+# 	assets/openshift-state-metrics/cluster-role.yaml
 # 	assets/prometheus-adapter/cluster-role-aggregated-metrics-reader.yaml
 # 	assets/prometheus-adapter/cluster-role-server-resources.yaml
 # 	assets/prometheus-adapter/cluster-role.yaml
@@ -148,7 +149,15 @@ rules:
   resources:
   - daemonsets
   - deployments
+  - ingresses
   - replicasets
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
   verbs:
   - list
   - watch
@@ -193,6 +202,13 @@ rules:
   - list
   - watch
 - apiGroups:
+  - certificates.k8s.io
+  resources:
+  - certificatesigningrequests
+  verbs:
+  - list
+  - watch
+- apiGroups:
   - ''
   resources:
   - pods
@@ -224,6 +240,35 @@ rules:
   - securitycontextconstraints
   verbs:
   - use
+- apiGroups:
+  - build.openshift.io
+  resources:
+  - buildconfigs
+  - builds
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - route.openshift.io
+  resources:
+  - routes
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - apps.openshift.io
+  resources:
+  - deploymentconfigs
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - quota.openshift.io
+  resources:
+  - clusterresourcequotas
+  verbs:
+  - list
+  - watch
 - apiGroups:
   - metrics.k8s.io
   resources:
@@ -283,17 +328,6 @@ rules:
   - list
   - watch
 - apiGroups:
-  - monitoring.coreos.com
-  resources:
-  - alertmanagers
-  - alertmanagers/finalizers
-  - prometheuses
-  - prometheuses/finalizers
-  - prometheusrules
-  - servicemonitors
-  verbs:
-  - '*'
-- apiGroups:
   - ''
   resources:
   - configmaps
@@ -308,6 +342,18 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - alertmanagers
+  - alertmanagers/finalizers
+  - podmonitors
+  - prometheuses
+  - prometheuses/finalizers
+  - prometheusrules
+  - servicemonitors
+  verbs:
+  - '*'
 - apiGroups:
   - apps
   resources:

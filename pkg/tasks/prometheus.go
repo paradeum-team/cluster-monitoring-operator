@@ -17,11 +17,11 @@ package tasks
 import (
 	"encoding/json"
 
-	"github.com/golang/glog"
 	"github.com/openshift/cluster-monitoring-operator/pkg/client"
 	"github.com/openshift/cluster-monitoring-operator/pkg/manifests"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog"
 )
 
 type PrometheusTask struct {
@@ -233,19 +233,19 @@ func (t *PrometheusTask) Run() error {
 		}
 	}
 
-	glog.V(4).Info("initializing Prometheus object")
+	klog.V(4).Info("initializing Prometheus object")
 	p, err := t.factory.PrometheusK8s(host)
 	if err != nil {
 		return errors.Wrap(err, "initializing Prometheus object failed")
 	}
 
-	glog.V(4).Info("reconciling Prometheus object")
+	klog.V(4).Info("reconciling Prometheus object")
 	err = t.client.CreateOrUpdatePrometheus(p)
 	if err != nil {
 		return errors.Wrap(err, "reconciling Prometheus object failed")
 	}
 
-	glog.V(4).Info("waiting for Prometheus object changes")
+	klog.V(4).Info("waiting for Prometheus object changes")
 	err = t.client.WaitForPrometheus(p)
 	if err != nil {
 		return errors.Wrap(err, "waiting for Prometheus object changes failed")
@@ -261,36 +261,6 @@ func (t *PrometheusTask) Run() error {
 		return errors.Wrap(err, "reconciling Prometheus kubelet ServiceMonitor failed")
 	}
 
-	sma, err := t.factory.PrometheusK8sApiserverServiceMonitor()
-	if err != nil {
-		return errors.Wrap(err, "initializing Prometheus apiserver ServiceMonitor failed")
-	}
-
-	err = t.client.CreateOrUpdateServiceMonitor(sma)
-	if err != nil {
-		return errors.Wrap(err, "reconciling Prometheus apiserver ServiceMonitor failed")
-	}
-
-	smks, err := t.factory.PrometheusK8sKubeSchedulerServiceMonitor()
-	if err != nil {
-		return errors.Wrap(err, "initializing Prometheus kube-scheduler ServiceMonitor failed")
-	}
-
-	err = t.client.CreateOrUpdateServiceMonitor(smks)
-	if err != nil {
-		return errors.Wrap(err, "reconciling Prometheus kube-scheduler ServiceMonitor failed")
-	}
-
-	smkcm, err := t.factory.PrometheusK8sKubeControllerManagerServiceMonitor()
-	if err != nil {
-		return errors.Wrap(err, "initializing Prometheus kube-controller-manager ServiceMonitor failed")
-	}
-
-	err = t.client.CreateOrUpdateServiceMonitor(smkcm)
-	if err != nil {
-		return errors.Wrap(err, "reconciling Prometheus kube-controller-manager ServiceMonitor failed")
-	}
-
 	smcvo, err := t.factory.PrometheusK8sServiceMonitorClusterVersionOperator()
 	if err != nil {
 		return errors.Wrap(err, "initializing Prometheus cluster-version-operator ServiceMonitor failed")
@@ -299,16 +269,6 @@ func (t *PrometheusTask) Run() error {
 	err = t.client.CreateOrUpdateServiceMonitor(smcvo)
 	if err != nil {
 		return errors.Wrap(err, "reconciling Prometheus cluster-version-operator ServiceMonitor failed")
-	}
-
-	smoapi, err := t.factory.PrometheusK8sServiceMonitorOpenShiftApiserver()
-	if err != nil {
-		return errors.Wrap(err, "initializing Prometheus OpenShift apiserver ServiceMonitor failed")
-	}
-
-	err = t.client.CreateOrUpdateServiceMonitor(smoapi)
-	if err != nil {
-		return errors.Wrap(err, "reconciling Prometheus OpenShift apiserver ServiceMonitor failed")
 	}
 
 	sme, err := t.factory.PrometheusK8sEtcdServiceMonitor()

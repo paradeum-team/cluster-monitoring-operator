@@ -16,6 +16,7 @@ package manifests
 
 import (
 	"bytes"
+	// #nosec
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
@@ -34,7 +35,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1beta2"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
-	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
@@ -58,6 +59,13 @@ var (
 	KubeStateMetricsService            = "assets/kube-state-metrics/service.yaml"
 	KubeStateMetricsServiceMonitor     = "assets/kube-state-metrics/service-monitor.yaml"
 
+	OpenShiftStateMetricsClusterRoleBinding = "assets/openshift-state-metrics/cluster-role-binding.yaml"
+	OpenShiftStateMetricsClusterRole        = "assets/openshift-state-metrics/cluster-role.yaml"
+	OpenShiftStateMetricsDeployment         = "assets/openshift-state-metrics/deployment.yaml"
+	OpenShiftStateMetricsServiceAccount     = "assets/openshift-state-metrics/service-account.yaml"
+	OpenShiftStateMetricsService            = "assets/openshift-state-metrics/service.yaml"
+	OpenShiftStateMetricsServiceMonitor     = "assets/openshift-state-metrics/service-monitor.yaml"
+
 	NodeExporterDaemonSet                  = "assets/node-exporter/daemonset.yaml"
 	NodeExporterService                    = "assets/node-exporter/service.yaml"
 	NodeExporterServiceAccount             = "assets/node-exporter/service-account.yaml"
@@ -76,12 +84,8 @@ var (
 	PrometheusK8sServiceAccount                       = "assets/prometheus-k8s/service-account.yaml"
 	PrometheusK8s                                     = "assets/prometheus-k8s/prometheus.yaml"
 	PrometheusK8sKubeletServiceMonitor                = "assets/prometheus-k8s/service-monitor-kubelet.yaml"
-	PrometheusK8sApiserverServiceMonitor              = "assets/prometheus-k8s/service-monitor-apiserver.yaml"
 	PrometheusK8sPrometheusServiceMonitor             = "assets/prometheus-k8s/service-monitor.yaml"
-	PrometheusK8sKubeControllerManagerServiceMonitor  = "assets/prometheus-k8s/service-monitor-kube-controller-manager.yaml"
-	PrometheusK8sKubeSchedulerServiceMonitor          = "assets/prometheus-k8s/service-monitor-kube-scheduler.yaml"
 	PrometheusK8sServiceMonitorClusterVersionOperator = "assets/prometheus-k8s/service-monitor-cluster-version-operator.yaml"
-	PrometheusK8sServiceMonitorOpenShiftApiserver     = "assets/prometheus-k8s/service-monitor-open-shift-apiserver.yaml"
 	PrometheusK8sService                              = "assets/prometheus-k8s/service.yaml"
 	PrometheusK8sProxySecret                          = "assets/prometheus-k8s/proxy-secret.yaml"
 	PrometheusRBACProxySecret                         = "assets/prometheus-k8s/kube-rbac-proxy-secret.yaml"
@@ -239,7 +243,7 @@ func (f *Factory) AlertmanagerServiceAccount() (*v1.ServiceAccount, error) {
 	return s, nil
 }
 
-func (f *Factory) AlertmanagerClusterRoleBinding() (*rbacv1beta1.ClusterRoleBinding, error) {
+func (f *Factory) AlertmanagerClusterRoleBinding() (*rbacv1.ClusterRoleBinding, error) {
 	crb, err := f.NewClusterRoleBinding(MustAssetReader(AlertmanagerClusterRoleBinding))
 	if err != nil {
 		return nil, err
@@ -250,7 +254,7 @@ func (f *Factory) AlertmanagerClusterRoleBinding() (*rbacv1beta1.ClusterRoleBind
 	return crb, nil
 }
 
-func (f *Factory) AlertmanagerClusterRole() (*rbacv1beta1.ClusterRole, error) {
+func (f *Factory) AlertmanagerClusterRole() (*rbacv1.ClusterRole, error) {
 	return f.NewClusterRole(MustAssetReader(AlertmanagerClusterRole))
 }
 
@@ -296,19 +300,6 @@ func (f *Factory) AlertmanagerMain(host string) (*monv1.Alertmanager, error) {
 
 	a.Spec.Containers[0].Image = f.config.Images.OauthProxy
 
-	for c := range a.Spec.Containers {
-		for e := range a.Spec.Containers[c].Env {
-			switch a.Spec.Containers[c].Env[e].Name {
-			case "HTTP_PROXY":
-				a.Spec.Containers[c].Env[e].Value = f.config.HTTPConfig.HTTPProxy
-			case "HTTPS_PROXY":
-				a.Spec.Containers[c].Env[e].Value = f.config.HTTPConfig.HTTPSProxy
-			case "NO_PROXY":
-				a.Spec.Containers[c].Env[e].Value = f.config.HTTPConfig.NoProxy
-			}
-		}
-	}
-
 	a.Namespace = f.namespace
 
 	return a, nil
@@ -328,7 +319,7 @@ func (f *Factory) AlertmanagerRoute() (*routev1.Route, error) {
 	return r, nil
 }
 
-func (f *Factory) KubeStateMetricsClusterRoleBinding() (*rbacv1beta1.ClusterRoleBinding, error) {
+func (f *Factory) KubeStateMetricsClusterRoleBinding() (*rbacv1.ClusterRoleBinding, error) {
 	crb, err := f.NewClusterRoleBinding(MustAssetReader(KubeStateMetricsClusterRoleBinding))
 	if err != nil {
 		return nil, err
@@ -339,7 +330,7 @@ func (f *Factory) KubeStateMetricsClusterRoleBinding() (*rbacv1beta1.ClusterRole
 	return crb, nil
 }
 
-func (f *Factory) KubeStateMetricsClusterRole() (*rbacv1beta1.ClusterRole, error) {
+func (f *Factory) KubeStateMetricsClusterRole() (*rbacv1.ClusterRole, error) {
 	return f.NewClusterRole(MustAssetReader(KubeStateMetricsClusterRole))
 }
 
@@ -373,7 +364,6 @@ func (f *Factory) KubeStateMetricsDeployment() (*appsv1.Deployment, error) {
 	if len(f.config.KubeStateMetricsConfig.Tolerations) > 0 {
 		d.Spec.Template.Spec.Tolerations = f.config.KubeStateMetricsConfig.Tolerations
 	}
-
 	d.Namespace = f.namespace
 
 	return d, nil
@@ -392,6 +382,78 @@ func (f *Factory) KubeStateMetricsServiceAccount() (*v1.ServiceAccount, error) {
 
 func (f *Factory) KubeStateMetricsService() (*v1.Service, error) {
 	s, err := f.NewService(MustAssetReader(KubeStateMetricsService))
+	if err != nil {
+		return nil, err
+	}
+
+	s.Namespace = f.namespace
+
+	return s, nil
+}
+
+func (f *Factory) OpenShiftStateMetricsClusterRoleBinding() (*rbacv1.ClusterRoleBinding, error) {
+	crb, err := f.NewClusterRoleBinding(MustAssetReader(OpenShiftStateMetricsClusterRoleBinding))
+	if err != nil {
+		return nil, err
+	}
+
+	crb.Subjects[0].Namespace = f.namespace
+
+	return crb, nil
+}
+
+func (f *Factory) OpenShiftStateMetricsClusterRole() (*rbacv1.ClusterRole, error) {
+	return f.NewClusterRole(MustAssetReader(OpenShiftStateMetricsClusterRole))
+}
+
+func (f *Factory) OpenShiftStateMetricsServiceMonitor() (*monv1.ServiceMonitor, error) {
+	sm, err := f.NewServiceMonitor(MustAssetReader(OpenShiftStateMetricsServiceMonitor))
+	if err != nil {
+		return nil, err
+	}
+
+	sm.Spec.Endpoints[0].TLSConfig.ServerName = fmt.Sprintf("openshift-state-metrics.%s.svc", f.namespace)
+	sm.Spec.Endpoints[1].TLSConfig.ServerName = fmt.Sprintf("openshift-state-metrics.%s.svc", f.namespace)
+	sm.Namespace = f.namespace
+
+	return sm, nil
+}
+
+func (f *Factory) OpenShiftStateMetricsDeployment() (*appsv1.Deployment, error) {
+	d, err := f.NewDeployment(MustAssetReader(OpenShiftStateMetricsDeployment))
+	if err != nil {
+		return nil, err
+	}
+
+	d.Spec.Template.Spec.Containers[0].Image = f.config.Images.KubeRbacProxy
+	d.Spec.Template.Spec.Containers[1].Image = f.config.Images.KubeRbacProxy
+	d.Spec.Template.Spec.Containers[2].Image = f.config.Images.OpenShiftStateMetrics
+
+	if f.config.OpenShiftMetricsConfig.NodeSelector != nil {
+		d.Spec.Template.Spec.NodeSelector = f.config.OpenShiftMetricsConfig.NodeSelector
+	}
+
+	if len(f.config.OpenShiftMetricsConfig.Tolerations) > 0 {
+		d.Spec.Template.Spec.Tolerations = f.config.OpenShiftMetricsConfig.Tolerations
+	}
+	d.Namespace = f.namespace
+
+	return d, nil
+}
+
+func (f *Factory) OpenShiftStateMetricsServiceAccount() (*v1.ServiceAccount, error) {
+	s, err := f.NewServiceAccount(MustAssetReader(OpenShiftStateMetricsServiceAccount))
+	if err != nil {
+		return nil, err
+	}
+
+	s.Namespace = f.namespace
+
+	return s, nil
+}
+
+func (f *Factory) OpenShiftStateMetricsService() (*v1.Service, error) {
+	s, err := f.NewService(MustAssetReader(OpenShiftStateMetricsService))
 	if err != nil {
 		return nil, err
 	}
@@ -458,7 +520,7 @@ func (f *Factory) NodeExporterServiceAccount() (*v1.ServiceAccount, error) {
 	return s, nil
 }
 
-func (f *Factory) NodeExporterClusterRoleBinding() (*rbacv1beta1.ClusterRoleBinding, error) {
+func (f *Factory) NodeExporterClusterRoleBinding() (*rbacv1.ClusterRoleBinding, error) {
 	crb, err := f.NewClusterRoleBinding(MustAssetReader(NodeExporterClusterRoleBinding))
 	if err != nil {
 		return nil, err
@@ -469,11 +531,11 @@ func (f *Factory) NodeExporterClusterRoleBinding() (*rbacv1beta1.ClusterRoleBind
 	return crb, nil
 }
 
-func (f *Factory) NodeExporterClusterRole() (*rbacv1beta1.ClusterRole, error) {
+func (f *Factory) NodeExporterClusterRole() (*rbacv1.ClusterRole, error) {
 	return f.NewClusterRole(MustAssetReader(NodeExporterClusterRole))
 }
 
-func (f *Factory) PrometheusK8sClusterRoleBinding() (*rbacv1beta1.ClusterRoleBinding, error) {
+func (f *Factory) PrometheusK8sClusterRoleBinding() (*rbacv1.ClusterRoleBinding, error) {
 	crb, err := f.NewClusterRoleBinding(MustAssetReader(PrometheusK8sClusterRoleBinding))
 	if err != nil {
 		return nil, err
@@ -484,11 +546,11 @@ func (f *Factory) PrometheusK8sClusterRoleBinding() (*rbacv1beta1.ClusterRoleBin
 	return crb, nil
 }
 
-func (f *Factory) PrometheusK8sClusterRole() (*rbacv1beta1.ClusterRole, error) {
+func (f *Factory) PrometheusK8sClusterRole() (*rbacv1.ClusterRole, error) {
 	return f.NewClusterRole(MustAssetReader(PrometheusK8sClusterRole))
 }
 
-func (f *Factory) PrometheusK8sRoleConfig() (*rbacv1beta1.Role, error) {
+func (f *Factory) PrometheusK8sRoleConfig() (*rbacv1.Role, error) {
 	r, err := f.NewRole(MustAssetReader(PrometheusK8sRoleConfig))
 	if err != nil {
 		return nil, err
@@ -499,7 +561,7 @@ func (f *Factory) PrometheusK8sRoleConfig() (*rbacv1beta1.Role, error) {
 	return r, nil
 }
 
-func (f *Factory) PrometheusK8sRoleBindingList() (*rbacv1beta1.RoleBindingList, error) {
+func (f *Factory) PrometheusK8sRoleBindingList() (*rbacv1.RoleBindingList, error) {
 	rbl, err := f.NewRoleBindingList(MustAssetReader(PrometheusK8sRoleBindingList))
 	if err != nil {
 		return nil, err
@@ -512,7 +574,7 @@ func (f *Factory) PrometheusK8sRoleBindingList() (*rbacv1beta1.RoleBindingList, 
 	return rbl, nil
 }
 
-func (f *Factory) PrometheusK8sRoleBindingConfig() (*rbacv1beta1.RoleBinding, error) {
+func (f *Factory) PrometheusK8sRoleBindingConfig() (*rbacv1.RoleBinding, error) {
 	rb, err := f.NewRoleBinding(MustAssetReader(PrometheusK8sRoleBindingConfig))
 	if err != nil {
 		return nil, err
@@ -523,7 +585,7 @@ func (f *Factory) PrometheusK8sRoleBindingConfig() (*rbacv1beta1.RoleBinding, er
 	return rb, nil
 }
 
-func (f *Factory) PrometheusK8sRoleList() (*rbacv1beta1.RoleList, error) {
+func (f *Factory) PrometheusK8sRoleList() (*rbacv1.RoleList, error) {
 	rl, err := f.NewRoleList(MustAssetReader(PrometheusK8sRoleList))
 	if err != nil {
 		return nil, err
@@ -590,6 +652,8 @@ func (f *Factory) PrometheusK8sHtpasswdSecret(password string) (*v1.Secret, erro
 		return nil, err
 	}
 
+	// #nosec
+	// TODO: Replace this with a safer algorithm
 	h := sha1.New()
 	h.Write([]byte(password))
 	s.Data["auth"] = []byte("internal:{SHA}" + base64.StdEncoding.EncodeToString(h.Sum(nil)))
@@ -742,6 +806,10 @@ func (f *Factory) PrometheusK8s(host string) (*monv1.Prometheus, error) {
 		}
 	}
 
+	if len(f.config.PrometheusK8sConfig.RemoteWrite) > 0 {
+		p.Spec.RemoteWrite = f.config.PrometheusK8sConfig.RemoteWrite
+	}
+
 	if !f.config.EtcdConfig.IsEnabled() {
 		secrets := []string{}
 		for _, s := range p.Spec.Secrets {
@@ -774,17 +842,6 @@ func (f *Factory) PrometheusK8sKubeletServiceMonitor() (*monv1.ServiceMonitor, e
 	return s, nil
 }
 
-func (f *Factory) PrometheusK8sApiserverServiceMonitor() (*monv1.ServiceMonitor, error) {
-	s, err := f.NewServiceMonitor(MustAssetReader(PrometheusK8sApiserverServiceMonitor))
-	if err != nil {
-		return nil, err
-	}
-
-	s.Namespace = f.namespace
-
-	return s, nil
-}
-
 func (f *Factory) PrometheusK8sPrometheusServiceMonitor() (*monv1.ServiceMonitor, error) {
 	sm, err := f.NewServiceMonitor(MustAssetReader(PrometheusK8sPrometheusServiceMonitor))
 	if err != nil {
@@ -795,28 +852,6 @@ func (f *Factory) PrometheusK8sPrometheusServiceMonitor() (*monv1.ServiceMonitor
 	sm.Namespace = f.namespace
 
 	return sm, nil
-}
-
-func (f *Factory) PrometheusK8sKubeSchedulerServiceMonitor() (*monv1.ServiceMonitor, error) {
-	s, err := f.NewServiceMonitor(MustAssetReader(PrometheusK8sKubeSchedulerServiceMonitor))
-	if err != nil {
-		return nil, err
-	}
-
-	s.Namespace = f.namespace
-
-	return s, nil
-}
-
-func (f *Factory) PrometheusK8sKubeControllerManagerServiceMonitor() (*monv1.ServiceMonitor, error) {
-	s, err := f.NewServiceMonitor(MustAssetReader(PrometheusK8sKubeControllerManagerServiceMonitor))
-	if err != nil {
-		return nil, err
-	}
-
-	s.Namespace = f.namespace
-
-	return s, nil
 }
 
 func (f *Factory) PrometheusK8sServiceMonitorClusterVersionOperator() (*monv1.ServiceMonitor, error) {
@@ -830,30 +865,19 @@ func (f *Factory) PrometheusK8sServiceMonitorClusterVersionOperator() (*monv1.Se
 	return s, nil
 }
 
-func (f *Factory) PrometheusK8sServiceMonitorOpenShiftApiserver() (*monv1.ServiceMonitor, error) {
-	s, err := f.NewServiceMonitor(MustAssetReader(PrometheusK8sServiceMonitorOpenShiftApiserver))
-	if err != nil {
-		return nil, err
-	}
-
-	s.Namespace = f.namespace
-
-	return s, nil
-}
-
-func (f *Factory) PrometheusAdapterClusterRole() (*rbacv1beta1.ClusterRole, error) {
+func (f *Factory) PrometheusAdapterClusterRole() (*rbacv1.ClusterRole, error) {
 	return f.NewClusterRole(MustAssetReader(PrometheusAdapterClusterRole))
 }
 
-func (f *Factory) PrometheusAdapterClusterRoleServerResources() (*rbacv1beta1.ClusterRole, error) {
+func (f *Factory) PrometheusAdapterClusterRoleServerResources() (*rbacv1.ClusterRole, error) {
 	return f.NewClusterRole(MustAssetReader(PrometheusAdapterClusterRoleServerResources))
 }
 
-func (f *Factory) PrometheusAdapterClusterRoleAggregatedMetricsReader() (*rbacv1beta1.ClusterRole, error) {
+func (f *Factory) PrometheusAdapterClusterRoleAggregatedMetricsReader() (*rbacv1.ClusterRole, error) {
 	return f.NewClusterRole(MustAssetReader(PrometheusAdapterClusterRoleAggregatedMetricsReader))
 }
 
-func (f *Factory) PrometheusAdapterClusterRoleBinding() (*rbacv1beta1.ClusterRoleBinding, error) {
+func (f *Factory) PrometheusAdapterClusterRoleBinding() (*rbacv1.ClusterRoleBinding, error) {
 	crb, err := f.NewClusterRoleBinding(MustAssetReader(PrometheusAdapterClusterRoleBinding))
 	if err != nil {
 		return nil, err
@@ -864,7 +888,7 @@ func (f *Factory) PrometheusAdapterClusterRoleBinding() (*rbacv1beta1.ClusterRol
 	return crb, nil
 }
 
-func (f *Factory) PrometheusAdapterClusterRoleBindingDelegator() (*rbacv1beta1.ClusterRoleBinding, error) {
+func (f *Factory) PrometheusAdapterClusterRoleBindingDelegator() (*rbacv1.ClusterRoleBinding, error) {
 	crb, err := f.NewClusterRoleBinding(MustAssetReader(PrometheusAdapterClusterRoleBindingDelegator))
 	if err != nil {
 		return nil, err
@@ -875,7 +899,7 @@ func (f *Factory) PrometheusAdapterClusterRoleBindingDelegator() (*rbacv1beta1.C
 	return crb, nil
 }
 
-func (f *Factory) PrometheusAdapterClusterRoleBindingView() (*rbacv1beta1.ClusterRoleBinding, error) {
+func (f *Factory) PrometheusAdapterClusterRoleBindingView() (*rbacv1.ClusterRoleBinding, error) {
 	crb, err := f.NewClusterRoleBinding(MustAssetReader(PrometheusAdapterClusterRoleBindingView))
 	if err != nil {
 		return nil, err
@@ -886,7 +910,7 @@ func (f *Factory) PrometheusAdapterClusterRoleBindingView() (*rbacv1beta1.Cluste
 	return crb, nil
 }
 
-func (f *Factory) PrometheusAdapterRoleBindingAuthReader() (*rbacv1beta1.RoleBinding, error) {
+func (f *Factory) PrometheusAdapterRoleBindingAuthReader() (*rbacv1.RoleBinding, error) {
 	rb, err := f.NewRoleBinding(MustAssetReader(PrometheusAdapterRoleBindingAuthReader))
 	if err != nil {
 		return nil, err
@@ -1068,7 +1092,7 @@ func (f *Factory) PrometheusOperatorServiceMonitor() (*monv1.ServiceMonitor, err
 	return sm, nil
 }
 
-func (f *Factory) PrometheusOperatorClusterRoleBinding() (*rbacv1beta1.ClusterRoleBinding, error) {
+func (f *Factory) PrometheusOperatorClusterRoleBinding() (*rbacv1.ClusterRoleBinding, error) {
 	crb, err := f.NewClusterRoleBinding(MustAssetReader(PrometheusOperatorClusterRoleBinding))
 	if err != nil {
 		return nil, err
@@ -1079,7 +1103,7 @@ func (f *Factory) PrometheusOperatorClusterRoleBinding() (*rbacv1beta1.ClusterRo
 	return crb, nil
 }
 
-func (f *Factory) PrometheusOperatorClusterRole() (*rbacv1beta1.ClusterRole, error) {
+func (f *Factory) PrometheusOperatorClusterRole() (*rbacv1.ClusterRole, error) {
 	return f.NewClusterRole(MustAssetReader(PrometheusOperatorClusterRole))
 }
 
@@ -1152,7 +1176,7 @@ func (f *Factory) PrometheusK8sService() (*v1.Service, error) {
 	return s, nil
 }
 
-func (f *Factory) GrafanaClusterRoleBinding() (*rbacv1beta1.ClusterRoleBinding, error) {
+func (f *Factory) GrafanaClusterRoleBinding() (*rbacv1.ClusterRoleBinding, error) {
 	crb, err := f.NewClusterRoleBinding(MustAssetReader(GrafanaClusterRoleBinding))
 	if err != nil {
 		return nil, err
@@ -1163,7 +1187,7 @@ func (f *Factory) GrafanaClusterRoleBinding() (*rbacv1beta1.ClusterRoleBinding, 
 	return crb, nil
 }
 
-func (f *Factory) GrafanaClusterRole() (*rbacv1beta1.ClusterRole, error) {
+func (f *Factory) GrafanaClusterRole() (*rbacv1.ClusterRole, error) {
 	return f.NewClusterRole(MustAssetReader(GrafanaClusterRole))
 }
 
@@ -1208,7 +1232,7 @@ func (f *Factory) GrafanaDatasources() (*v1.Secret, error) {
 	}
 
 	d := &GrafanaDatasources{}
-	err = json.Unmarshal(s.Data["prometheus.yaml"], d)
+	err = json.Unmarshal(s.Data["datasources.yaml"], d)
 	if err != nil {
 		return nil, err
 	}
@@ -1366,7 +1390,7 @@ func (f *Factory) GrafanaServiceMonitor() (*monv1.ServiceMonitor, error) {
 	return s, nil
 }
 
-func (f *Factory) ClusterMonitoringClusterRole() (*rbacv1beta1.ClusterRole, error) {
+func (f *Factory) ClusterMonitoringClusterRole() (*rbacv1.ClusterRole, error) {
 	cr, err := f.NewClusterRole(MustAssetReader(ClusterMonitoringClusterRole))
 	if err != nil {
 		return nil, err
@@ -1485,7 +1509,7 @@ func (f *Factory) NewSecret(manifest io.Reader) (*v1.Secret, error) {
 	return s, nil
 }
 
-func (f *Factory) NewRoleBinding(manifest io.Reader) (*rbacv1beta1.RoleBinding, error) {
+func (f *Factory) NewRoleBinding(manifest io.Reader) (*rbacv1.RoleBinding, error) {
 	rb, err := NewRoleBinding(manifest)
 	if err != nil {
 		return nil, err
@@ -1498,7 +1522,7 @@ func (f *Factory) NewRoleBinding(manifest io.Reader) (*rbacv1beta1.RoleBinding, 
 	return rb, nil
 }
 
-func (f *Factory) NewRoleList(manifest io.Reader) (*rbacv1beta1.RoleList, error) {
+func (f *Factory) NewRoleList(manifest io.Reader) (*rbacv1.RoleList, error) {
 	rl, err := NewRoleList(manifest)
 	if err != nil {
 		return nil, err
@@ -1513,7 +1537,7 @@ func (f *Factory) NewRoleList(manifest io.Reader) (*rbacv1beta1.RoleList, error)
 	return rl, nil
 }
 
-func (f *Factory) NewRoleBindingList(manifest io.Reader) (*rbacv1beta1.RoleBindingList, error) {
+func (f *Factory) NewRoleBindingList(manifest io.Reader) (*rbacv1.RoleBindingList, error) {
 	rbl, err := NewRoleBindingList(manifest)
 	if err != nil {
 		return nil, err
@@ -1528,7 +1552,7 @@ func (f *Factory) NewRoleBindingList(manifest io.Reader) (*rbacv1beta1.RoleBindi
 	return rbl, nil
 }
 
-func (f *Factory) NewRole(manifest io.Reader) (*rbacv1beta1.Role, error) {
+func (f *Factory) NewRole(manifest io.Reader) (*rbacv1.Role, error) {
 	r, err := NewRole(manifest)
 	if err != nil {
 		return nil, err
@@ -1668,11 +1692,11 @@ func (f *Factory) NewSecurityContextConstraints(manifest io.Reader) (*securityv1
 	return NewSecurityContextConstraints(manifest)
 }
 
-func (f *Factory) NewClusterRoleBinding(manifest io.Reader) (*rbacv1beta1.ClusterRoleBinding, error) {
+func (f *Factory) NewClusterRoleBinding(manifest io.Reader) (*rbacv1.ClusterRoleBinding, error) {
 	return NewClusterRoleBinding(manifest)
 }
 
-func (f *Factory) NewClusterRole(manifest io.Reader) (*rbacv1beta1.ClusterRole, error) {
+func (f *Factory) NewClusterRole(manifest io.Reader) (*rbacv1.ClusterRole, error) {
 	return NewClusterRole(manifest)
 }
 
@@ -1689,7 +1713,7 @@ func (f *Factory) TelemeterClientServingCertsCABundle() (*v1.ConfigMap, error) {
 }
 
 // TelemeterClientClusterRole generates a new ClusterRole for Telemeter client.
-func (f *Factory) TelemeterClientClusterRole() (*rbacv1beta1.ClusterRole, error) {
+func (f *Factory) TelemeterClientClusterRole() (*rbacv1.ClusterRole, error) {
 	cr, err := f.NewClusterRole(MustAssetReader(TelemeterClientClusterRole))
 	if err != nil {
 		return nil, err
@@ -1699,7 +1723,7 @@ func (f *Factory) TelemeterClientClusterRole() (*rbacv1beta1.ClusterRole, error)
 }
 
 // TelemeterClientClusterRoleBinding generates a new ClusterRoleBinding for Telemeter client.
-func (f *Factory) TelemeterClientClusterRoleBinding() (*rbacv1beta1.ClusterRoleBinding, error) {
+func (f *Factory) TelemeterClientClusterRoleBinding() (*rbacv1.ClusterRoleBinding, error) {
 	crb, err := f.NewClusterRoleBinding(MustAssetReader(TelemeterClientClusterRoleBinding))
 	if err != nil {
 		return nil, err
@@ -1710,7 +1734,7 @@ func (f *Factory) TelemeterClientClusterRoleBinding() (*rbacv1beta1.ClusterRoleB
 
 // TelemeterClientClusterRoleBindingView generates a new ClusterRoleBinding for Telemeter client
 // for the cluster monitoring view ClusterRole.
-func (f *Factory) TelemeterClientClusterRoleBindingView() (*rbacv1beta1.ClusterRoleBinding, error) {
+func (f *Factory) TelemeterClientClusterRoleBindingView() (*rbacv1.ClusterRoleBinding, error) {
 	crb, err := f.NewClusterRoleBinding(MustAssetReader(TelemeterClientClusterRoleBindingView))
 	if err != nil {
 		return nil, err
@@ -1752,6 +1776,16 @@ func (f *Factory) TelemeterClientDeployment() (*appsv1.Deployment, error) {
 	}
 	if f.config.TelemeterClientConfig.TelemeterServerURL != "" {
 		setEnv("TO", f.config.TelemeterClientConfig.TelemeterServerURL)
+	}
+
+	if f.config.HTTPConfig.HTTPProxy != "" {
+		setEnv("HTTP_PROXY", f.config.HTTPConfig.HTTPProxy)
+	}
+	if f.config.HTTPConfig.HTTPSProxy != "" {
+		setEnv("HTTPS_PROXY", f.config.HTTPConfig.HTTPSProxy)
+	}
+	if f.config.HTTPConfig.NoProxy != "" {
+		setEnv("NO_PROXY", f.config.HTTPConfig.NoProxy)
 	}
 
 	d.Spec.Template.Spec.Containers[0].Image = f.config.Images.TelemeterClient
@@ -1863,8 +1897,8 @@ func NewSecret(manifest io.Reader) (*v1.Secret, error) {
 	return &s, nil
 }
 
-func NewClusterRoleBinding(manifest io.Reader) (*rbacv1beta1.ClusterRoleBinding, error) {
-	crb := rbacv1beta1.ClusterRoleBinding{}
+func NewClusterRoleBinding(manifest io.Reader) (*rbacv1.ClusterRoleBinding, error) {
+	crb := rbacv1.ClusterRoleBinding{}
 	err := yaml.NewYAMLOrJSONDecoder(manifest, 100).Decode(&crb)
 	if err != nil {
 		return nil, err
@@ -1873,8 +1907,8 @@ func NewClusterRoleBinding(manifest io.Reader) (*rbacv1beta1.ClusterRoleBinding,
 	return &crb, nil
 }
 
-func NewClusterRole(manifest io.Reader) (*rbacv1beta1.ClusterRole, error) {
-	cr := rbacv1beta1.ClusterRole{}
+func NewClusterRole(manifest io.Reader) (*rbacv1.ClusterRole, error) {
+	cr := rbacv1.ClusterRole{}
 	err := yaml.NewYAMLOrJSONDecoder(manifest, 100).Decode(&cr)
 	if err != nil {
 		return nil, err
@@ -1883,8 +1917,8 @@ func NewClusterRole(manifest io.Reader) (*rbacv1beta1.ClusterRole, error) {
 	return &cr, nil
 }
 
-func NewRoleBinding(manifest io.Reader) (*rbacv1beta1.RoleBinding, error) {
-	rb := rbacv1beta1.RoleBinding{}
+func NewRoleBinding(manifest io.Reader) (*rbacv1.RoleBinding, error) {
+	rb := rbacv1.RoleBinding{}
 	err := yaml.NewYAMLOrJSONDecoder(manifest, 100).Decode(&rb)
 	if err != nil {
 		return nil, err
@@ -1893,8 +1927,8 @@ func NewRoleBinding(manifest io.Reader) (*rbacv1beta1.RoleBinding, error) {
 	return &rb, nil
 }
 
-func NewRole(manifest io.Reader) (*rbacv1beta1.Role, error) {
-	r := rbacv1beta1.Role{}
+func NewRole(manifest io.Reader) (*rbacv1.Role, error) {
+	r := rbacv1.Role{}
 	err := yaml.NewYAMLOrJSONDecoder(manifest, 100).Decode(&r)
 	if err != nil {
 		return nil, err
@@ -1903,8 +1937,8 @@ func NewRole(manifest io.Reader) (*rbacv1beta1.Role, error) {
 	return &r, nil
 }
 
-func NewRoleBindingList(manifest io.Reader) (*rbacv1beta1.RoleBindingList, error) {
-	rbl := rbacv1beta1.RoleBindingList{}
+func NewRoleBindingList(manifest io.Reader) (*rbacv1.RoleBindingList, error) {
+	rbl := rbacv1.RoleBindingList{}
 	err := yaml.NewYAMLOrJSONDecoder(manifest, 100).Decode(&rbl)
 	if err != nil {
 		return nil, err
@@ -1913,8 +1947,8 @@ func NewRoleBindingList(manifest io.Reader) (*rbacv1beta1.RoleBindingList, error
 	return &rbl, nil
 }
 
-func NewRoleList(manifest io.Reader) (*rbacv1beta1.RoleList, error) {
-	rl := rbacv1beta1.RoleList{}
+func NewRoleList(manifest io.Reader) (*rbacv1.RoleList, error) {
+	rl := rbacv1.RoleList{}
 	err := yaml.NewYAMLOrJSONDecoder(manifest, 100).Decode(&rl)
 	if err != nil {
 		return nil, err

@@ -15,13 +15,10 @@
 package manifests
 
 import (
-	"errors"
-	"fmt"
 	"reflect"
 	"strings"
 	"testing"
 
-	monv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -73,6 +70,36 @@ func TestUnconfiguredManifests(t *testing.T) {
 	}
 
 	_, err = f.KubeStateMetricsService()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = f.OpenShiftStateMetricsClusterRoleBinding()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = f.OpenShiftStateMetricsClusterRole()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = f.OpenShiftStateMetricsServiceMonitor()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = f.OpenShiftStateMetricsDeployment()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = f.OpenShiftStateMetricsServiceAccount()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = f.OpenShiftStateMetricsService()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,32 +174,12 @@ func TestUnconfiguredManifests(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = f.PrometheusK8sApiserverServiceMonitor()
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	_, err = f.PrometheusK8sPrometheusServiceMonitor()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = f.PrometheusK8sKubeControllerManagerServiceMonitor()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = f.PrometheusK8sKubeSchedulerServiceMonitor()
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	_, err = f.PrometheusK8sServiceMonitorClusterVersionOperator()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = f.PrometheusK8sServiceMonitorOpenShiftApiserver()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -367,172 +374,6 @@ func TestUnconfiguredManifests(t *testing.T) {
 	}
 }
 
-func TestHTTPConfig(t *testing.T) {
-	type checkFunc func(*monv1.Alertmanager) error
-
-	checks := func(cs ...checkFunc) checkFunc {
-		return func(a *monv1.Alertmanager) error {
-			for _, f := range cs {
-				if err := f(a); err != nil {
-					return err
-				}
-			}
-			return nil
-		}
-	}
-
-	hasContainers := func(a *monv1.Alertmanager) error {
-		if len(a.Spec.Containers) == 0 {
-			return errors.New("expected spec to have containers, but it doesn't have any")
-		}
-		return nil
-	}
-
-	containerHasEnv := func(c v1.Container, name, value string) bool {
-		for e := range c.Env {
-			if c.Env[e].Name != name {
-				continue
-			}
-			if c.Env[e].Value == value {
-				return true
-			}
-		}
-		return false
-	}
-
-	containersHaveEnv := func(name, value string) checkFunc {
-		return func(a *monv1.Alertmanager) error {
-			for c := range a.Spec.Containers {
-				if !containerHasEnv(a.Spec.Containers[c], name, value) {
-					return fmt.Errorf(
-						"containers expected to have env var %v=%v, but %v doesn't",
-						name, value, a.Spec.Containers[c].Name,
-					)
-				}
-			}
-			return nil
-		}
-	}
-
-	for _, tc := range []struct {
-		name   string
-		config string
-		check  checkFunc
-	}{
-		{
-			name: "no http config",
-
-			check: checks(
-				hasContainers,
-				containersHaveEnv("HTTP_PROXY", ""),
-				containersHaveEnv("HTTPS_PROXY", ""),
-				containersHaveEnv("NO_PROXY", ""),
-			),
-		},
-		{
-			name: "empty http config",
-
-			config: `http:`,
-
-			check: checks(
-				hasContainers,
-				containersHaveEnv("HTTP_PROXY", ""),
-				containersHaveEnv("HTTPS_PROXY", ""),
-				containersHaveEnv("NO_PROXY", ""),
-			),
-		},
-		{
-			name: "http proxy only",
-
-			config: `http:
-  httpProxy: http://insecure.proxy`,
-
-			check: checks(
-				hasContainers,
-				containersHaveEnv("HTTP_PROXY", "http://insecure.proxy"),
-				containersHaveEnv("HTTPS_PROXY", ""),
-				containersHaveEnv("NO_PROXY", ""),
-			),
-		},
-		{
-			name: "https proxy only",
-
-			config: `http:
-  httpsProxy: https://secure.proxy`,
-
-			check: checks(
-				hasContainers,
-				containersHaveEnv("HTTP_PROXY", ""),
-				containersHaveEnv("HTTPS_PROXY", "https://secure.proxy"),
-				containersHaveEnv("NO_PROXY", ""),
-			),
-		},
-		{
-			name: "https and http proxy",
-
-			config: `http:
-  httpProxy: http://insecure.proxy
-  httpsProxy: https://secure.proxy`,
-
-			check: checks(
-				hasContainers,
-				containersHaveEnv("HTTP_PROXY", "http://insecure.proxy"),
-				containersHaveEnv("HTTPS_PROXY", "https://secure.proxy"),
-				containersHaveEnv("NO_PROXY", ""),
-			),
-		},
-		{
-			name: "https and no proxy",
-
-			config: `http:
-  httpsProxy: https://secure.proxy
-  noProxy: .test.local,.cluster.local`,
-
-			check: checks(
-				hasContainers,
-				containersHaveEnv("HTTP_PROXY", ""),
-				containersHaveEnv("HTTPS_PROXY", "https://secure.proxy"),
-				containersHaveEnv("NO_PROXY", ".test.local,.cluster.local"),
-			),
-		},
-		{
-			name: "http and https and no proxy",
-
-			config: `http:
-  httpProxy: http://insecure.proxy
-  httpsProxy: https://secure.proxy
-  noProxy: .test.local,.cluster.local`,
-
-			check: checks(
-				hasContainers,
-				containersHaveEnv("HTTP_PROXY", "http://insecure.proxy"),
-				containersHaveEnv("HTTPS_PROXY", "https://secure.proxy"),
-				containersHaveEnv("NO_PROXY", ".test.local,.cluster.local"),
-			),
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			c, err := NewConfigFromString(tc.config)
-			if err != nil {
-				t.Error(err)
-				return
-			}
-
-			f := NewFactory("openshift-monitoring", c)
-			d, err := f.AlertmanagerMain("alertmanager-main.openshift-monitoring.svc")
-			if err != nil {
-				t.Error(err)
-				return
-			}
-
-			if err := tc.check(d); err != nil {
-				t.Error(err)
-				return
-			}
-		})
-	}
-}
-
 func TestPrometheusOperatorConfiguration(t *testing.T) {
 	c, err := NewConfigFromString(`prometheusOperator:
   nodeSelector:
@@ -622,6 +463,8 @@ func TestPrometheusK8sConfiguration(t *testing.T) {
       memory: 750Mi
   externalLabels:
     datacenter: eu-west
+  remoteWrite:
+  - url: "https://test.remotewrite.com/api/write"
 ingress:
   baseAddress: monitoring-demo.staging.core-os.net
 `)
@@ -700,6 +543,10 @@ ingress:
 	storageRequestPtr := &storageRequest
 	if storageRequestPtr.String() != "15Gi" {
 		t.Fatal("Prometheus volumeClaimTemplate not configured correctly, expected 15Gi storage request, but found", storageRequestPtr.String())
+	}
+
+	if p.Spec.RemoteWrite[0].URL != "https://test.remotewrite.com/api/write" {
+		t.Fatal("Prometheus remote-write is not configured correctly")
 	}
 }
 
@@ -864,6 +711,34 @@ func TestKubeStateMetrics(t *testing.T) {
 	}
 	if d.Spec.Template.Spec.Containers[2].Image != "docker.io/openshift/origin-kube-state-metrics:latest" {
 		t.Fatal("kube-state-metrics image incorrectly configured")
+	}
+}
+
+func TestOpenShiftStateMetrics(t *testing.T) {
+	c, err := NewConfigFromString(``)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.SetImages(map[string]string{
+		"openshift-state-metrics": "docker.io/openshift/origin-openshift-state-metrics:latest",
+		"kube-rbac-proxy":         "docker.io/openshift/origin-kube-rbac-proxy:latest",
+	})
+
+	f := NewFactory("openshift-monitoring", c)
+
+	d, err := f.OpenShiftStateMetricsDeployment()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if d.Spec.Template.Spec.Containers[0].Image != "docker.io/openshift/origin-kube-rbac-proxy:latest" {
+		t.Fatal("kube-rbac-proxy image incorrectly configured")
+	}
+	if d.Spec.Template.Spec.Containers[1].Image != "docker.io/openshift/origin-kube-rbac-proxy:latest" {
+		t.Fatal("kube-rbac-proxy image incorrectly configured")
+	}
+	if d.Spec.Template.Spec.Containers[2].Image != "docker.io/openshift/origin-openshift-state-metrics:latest" {
+		t.Fatal("openshift-state-metrics image incorrectly configured")
 	}
 }
 

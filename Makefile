@@ -21,7 +21,7 @@ JB_BIN=$(GOPATH)/bin/jb
 ASSETS=$(shell grep -oh 'assets/.*\.yaml' pkg/manifests/manifests.go)
 JSONNET_SRC=$(shell find ./jsonnet -type f)
 JSONNET_VENDOR=jsonnet/jsonnetfile.lock.json jsonnet/vendor
-GO_BUILD_RECIPE=GOOS=$(GOOS) go build --ldflags="-s -X github.com/ss75710541/cluster-monitoring-operator/pkg/operator.Version=$(VERSION)" -o $(BIN) $(MAIN_PKG)
+GO_BUILD_RECIPE=GOOS=$(GOOS) go build --ldflags="-s -X main.buildstamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'` -X github.com/ss75710541/cluster-monitoring-operator/pkg/operator.Version=$(VERSION)" -o $(BIN) $(MAIN_PKG)
 
 build: $(BIN)
 

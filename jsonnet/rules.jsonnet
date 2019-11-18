@@ -146,16 +146,36 @@
             record: 'rnodeid:rnode_dltest_dlspeed:avg'
           },
           {
-            expr: 'count by (rnodeid) (rnode_uptest_time{issuccess="true"})',
-            record: 'rnodeid:rnode_uptest_time:success_count'
+            expr: 'count by (rnodeid) (rnode_uptest_time{issuccess="true",uptype="upload",upfield="afs"})',
+            record: 'rnodeid:rnode_uptest_afs_time:success_count'
           },
           {
-            expr: 'count by (rnodeid) (rnode_uptest_time{})',
-            record: 'rnodeid:rnode_uptest_time:count'
+            expr: 'count by (rnodeid) (rnode_uptest_time{uptype="upload",upfield="afs"})',
+            record: 'rnodeid:rnode_uptest_afs_time:count'
           },
           {
-            expr: 'avg by (rnodeid) (rnode_uptest_time{})',
-            record: 'rnodeid:rnode_uptest_time:avg'
+            expr: 'avg by (rnodeid) (rnode_uptest_time{uptype="upload",upfield="afs"})',
+            record: 'rnodeid:rnode_uptest_afs_time:avg'
+          },
+          {
+            expr: 'count by (rnodeid) (rnode_uptest_time{issuccess="true",uptype="upload",upfield="arfs"})',
+            record: 'rnodeid:rnode_uptest_arfs_time:success_count'
+          },
+          {
+            expr: 'count by (rnodeid) (rnode_uptest_time{uptype="upload",upfield="arfs"})',
+            record: 'rnodeid:rnode_uptest_arfs_time:count'
+          },
+          {
+            expr: 'avg by (rnodeid) (rnode_uptest_time{uptype="upload",upfield="arfs"})',
+            record: 'rnodeid:rnode_uptest_arfs_time:avg'
+          },
+          {
+            expr: 'count by (rnodeid) (rnode_uptest_time{issuccess="true",uptype="upload",upfield="agfs"})',
+            record: 'rnodeid:rnode_uptest_agfs_alias:success_count'
+          },
+          {
+            expr: 'count by (rnodeid) (rnode_uptest_time{uptype="upload", upfield="agfs"})',
+            record: 'rnodeid:rnode_uptest_agfs_alias:count'
           },
           {
             expr: 'sum by (rnodeid) (rnode_fstat_daliy_download_file_count{})',
@@ -197,11 +217,33 @@
             }
           },
           {
-            expr: 'sum by (rnodeid) (rnodeid:rnode_uptest_time:success_count) / sum by (rnodeid) (rnodeid:rnode_uptest_time:count) < 1',
-            alert: 'BfsRnodeUploadTestError',
+            expr: 'sum by (rnodeid) (rnodeid:rnode_uptest_afs_time:success_count) / sum by (rnodeid) (rnodeid:rnode_uptest_afs_time:count) < 1',
+            alert: 'BfsRnodeUploadTestAfsError',
             'for': '5m',
             annotations: {
-              message: 'rnode {{ $labels.rnodeid }} upload test accuracy {{ printf "%0.0f" $value }}% .',
+              message: 'rnode {{ $labels.rnodeid }} upload test afs accuracy {{ printf "%0.0f" $value }}% .',
+            },
+            labels: {
+              severity: 'critical',
+            }
+          },
+          {
+            expr: 'sum by (rnodeid) (rnodeid:rnode_uptest_arfs_time:success_count) / sum by (rnodeid) (rnodeid:rnode_uptest_arfs_time:count) < 1',
+            alert: 'BfsRnodeUploadTestArfsError',
+            'for': '5m',
+            annotations: {
+              message: 'rnode {{ $labels.rnodeid }} upload test arfs accuracy {{ printf "%0.0f" $value }}% .',
+            },
+            labels: {
+              severity: 'critical',
+            }
+          },
+          {
+            expr: 'sum by (rnodeid) (rnodeid:rnode_uptest_agfs_time:success_count) / sum by (rnodeid) (rnodeid:rnode_uptest_agfs_time:count) < 1',
+            alert: 'BfsRnodeUploadTestAgfsError',
+            'for': '5m',
+            annotations: {
+              message: 'rnode {{ $labels.rnodeid }} upload test agfs accuracy {{ printf "%0.0f" $value }}% .',
             },
             labels: {
               severity: 'critical',
